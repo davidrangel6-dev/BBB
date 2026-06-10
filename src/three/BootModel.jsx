@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { heelById } from '../data/presets'
 import { useBootMaterials } from './materials'
 
@@ -8,9 +9,9 @@ import { useBootMaterials } from './materials'
 // a separate mesh so leathers can be swapped independently — the same part
 // names the real commissioned .glb model should use.
 
-function extrudeProfile(shape, width, bevel) {
+function extrudeProfile(shape, width, bevel, smooth = false) {
   const depth = width - bevel * 2
-  const geo = new THREE.ExtrudeGeometry(shape, {
+  let geo = new THREE.ExtrudeGeometry(shape, {
     depth,
     bevelEnabled: true,
     bevelThickness: bevel,
@@ -18,6 +19,13 @@ function extrudeProfile(shape, width, bevel) {
     bevelSegments: 4,
     curveSegments: 24,
   })
+  if (smooth) {
+    // Extrusions are flat-shaded by default; weld vertices and recompute
+    // normals so curved leather surfaces shade smoothly.
+    geo.deleteAttribute('normal')
+    geo = mergeVertices(geo)
+    geo.computeVertexNormals()
+  }
   geo.translate(0, 0, -depth / 2)
   return geo
 }
@@ -116,9 +124,9 @@ export default function BootModel({ design }) {
 
   const geos = useMemo(() => {
     return {
-      vamp: extrudeProfile(footShape(design.toe), 3.5, 0.4),
+      vamp: extrudeProfile(footShape(design.toe), 3.5, 0.4, true),
       sole: extrudeProfile(soleShape(design.toe), 3.8, 0.18),
-      shaft: extrudeProfile(shaftShape(design.shaftHeight), SHAFT_WIDTH, 0.45),
+      shaft: extrudeProfile(shaftShape(design.shaftHeight), SHAFT_WIDTH, 0.45, true),
       heel: extrudeProfile(heelShape(heelHeight), 3.3, 0.15),
       stitches: stitchGeometries(design.shaftHeight),
     }

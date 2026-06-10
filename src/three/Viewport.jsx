@@ -9,7 +9,7 @@ export default function Viewport({ design, customScene }) {
       shadows
       dpr={[1, 2]}
       gl={{ preserveDrawingBuffer: true, antialias: true }}
-      camera={{ position: [19, 10, 21], fov: 32 }}
+      camera={{ position: [23, 12, 25], fov: 32 }}
     >
       <color attach="background" args={['#ece6d8']} />
       <ambientLight intensity={0.55} />
