@@ -1,24 +1,34 @@
 import * as THREE from 'three'
 
-// Procedural full-grain leather maps, generated once at startup. A
-// jittered-grid Voronoi heightfield makes the pebbled grain (toroidal so
-// it tiles seamlessly); from it we derive a normal map (surface bumps),
-// an albedo mottle (dye pooling darker in the creases), and a roughness
-// map (pebble tops polish up shinier than the valleys).
+// Procedural leather texture sets, generated once per type at startup.
+// Each type builds a heightfield, from which we derive a normal map
+// (surface bumps), an albedo mottle (dye pooling darker in recesses),
+// and a roughness map (high spots burnish shinier).
+//
+// Types follow the leathers used in western bootmaking:
+//   calf    – classic pebbled full-grain calfskin
+//   smooth  – box calf, nearly smooth dress leather
+//   suede   – roughout / suede nap, matte and fuzzy
+//   ostrich – full-quill ostrich, smooth skin with raised quill bumps
+//   caiman  – caiman belly, armored rectangular scale tiles
 
 const SIZE = 512
-const CELLS = 18
 
-let cache = null
+const cache = {}
 
-function buildHeightField() {
+function rng(seed) {
+  let s = seed
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296
+    return s / 4294967296
+  }
+}
+
+function voronoiField(cells, rand) {
   const pts = []
-  for (let gy = 0; gy < CELLS; gy++) {
-    for (let gx = 0; gx < CELLS; gx++) {
-      pts.push([
-        (gx + 0.15 + Math.random() * 0.7) / CELLS,
-        (gy + 0.15 + Math.random() * 0.7) / CELLS,
-      ])
+  for (let gy = 0; gy < cells; gy++) {
+    for (let gx = 0; gx < cells; gx++) {
+      pts.push([(gx + 0.15 + rand() * 0.7) / cells, (gy + 0.15 + rand() * 0.7) / cells])
     }
   }
   const height = new Float32Array(SIZE * SIZE)
@@ -26,13 +36,13 @@ function buildHeightField() {
     for (let x = 0; x < SIZE; x++) {
       const u = x / SIZE
       const v = y / SIZE
-      const cx = Math.floor(u * CELLS)
-      const cy = Math.floor(v * CELLS)
+      const cx = Math.floor(u * cells)
+      const cy = Math.floor(v * cells)
       let d1 = Infinity
       let d2 = Infinity
       for (let oy = -1; oy <= 1; oy++) {
         for (let ox = -1; ox <= 1; ox++) {
-          const p = pts[((cy + oy + CELLS) % CELLS) * CELLS + ((cx + ox + CELLS) % CELLS)]
+          const p = pts[((cy + oy + cells) % cells) * cells + ((cx + ox + cells) % cells)]
           let dx = Math.abs(p[0] - u)
           if (dx > 0.5) dx = 1 - dx
           let dy = Math.abs(p[1] - v)
@@ -46,11 +56,101 @@ function buildHeightField() {
           }
         }
       }
-      const ridge = Math.min((d2 - d1) * CELLS * 2.4, 1)
-      height[y * SIZE + x] = Math.pow(ridge, 0.65) + (Math.random() - 0.5) * 0.06
+      const ridge = Math.min((d2 - d1) * cells * 2.4, 1)
+      height[y * SIZE + x] = Math.pow(ridge, 0.65) + (rand() - 0.5) * 0.06
     }
   }
   return height
+}
+
+function calfField() {
+  return voronoiField(18, rng(7))
+}
+
+function smoothField() {
+  const rand = rng(11)
+  const h = new Float32Array(SIZE * SIZE)
+  for (let i = 0; i < h.length; i++) h[i] = 0.5 + (rand() - 0.5) * 0.12
+  return h
+}
+
+function suedeField() {
+  // Dense fine fuzz: two scales of random noise.
+  const rand = rng(23)
+  const coarse = voronoiField(40, rng(29))
+  const h = new Float32Array(SIZE * SIZE)
+  for (let i = 0; i < h.length; i++) {
+    h[i] = coarse[i] * 0.3 + 0.35 + (rand() - 0.5) * 0.5
+  }
+  return h
+}
+
+function ostrichField() {
+  // Smooth skin with raised quill follicles in a loose jittered grid.
+  const cells = 6
+  const rand = rng(41)
+  const quills = []
+  for (let gy = 0; gy < cells; gy++) {
+    for (let gx = 0; gx < cells; gx++) {
+      if (rand() < 0.62) {
+        quills.push([(gx + 0.25 + rand() * 0.5) / cells, (gy + 0.25 + rand() * 0.5) / cells])
+      }
+    }
+  }
+  const noise = rng(43)
+  const h = new Float32Array(SIZE * SIZE)
+  const r2 = 0.0016 // quill radius squared in uv space
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const u = x / SIZE
+      const v = y / SIZE
+      let bump = 0
+      for (const q of quills) {
+        let dx = Math.abs(q[0] - u)
+        if (dx > 0.5) dx = 1 - dx
+        let dy = Math.abs(q[1] - v)
+        if (dy > 0.5) dy = 1 - dy
+        const d2 = dx * dx + dy * dy
+        if (d2 < r2 * 9) bump = Math.max(bump, Math.exp(-d2 / r2))
+      }
+      h[y * SIZE + x] = 0.18 + bump * 0.82 + (noise() - 0.5) * 0.05
+    }
+  }
+  return h
+}
+
+function caimanField() {
+  // Rounded rectangular scale tiles with deep creases between them.
+  const cols = 5
+  const rows = 8
+  const rand = rng(57)
+  const cellLift = []
+  for (let i = 0; i < cols * rows; i++) cellLift.push(0.8 + rand() * 0.25)
+  const noise = rng(61)
+  const h = new Float32Array(SIZE * SIZE)
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const u = (x / SIZE) * cols
+      const v = (y / SIZE) * rows
+      const col = Math.floor(u)
+      const row = Math.floor(v)
+      const lu = u - col
+      const lv = v - row
+      const edge = Math.min(Math.min(lu, 1 - lu) * 7, Math.min(lv, 1 - lv) * 9, 1)
+      const dome = 1 - ((lu - 0.5) ** 2 + (lv - 0.5) ** 2) * 0.6
+      const lift = cellLift[row * cols + col]
+      h[y * SIZE + x] = Math.pow(Math.max(edge, 0), 0.55) * dome * lift + (noise() - 0.5) * 0.04
+    }
+  }
+  return h
+}
+
+const TYPE_PARAMS = {
+  calf: { field: calfField, normalStrength: 1.7, toneBase: 205, toneRange: 46, roughDepth: 0.22 },
+  smooth: { field: smoothField, normalStrength: 0.7, toneBase: 225, toneRange: 22, roughDepth: 0.1 },
+  suede: { field: suedeField, normalStrength: 1.2, toneBase: 215, toneRange: 34, roughDepth: -0.08 },
+  ostrich: { field: ostrichField, normalStrength: 2.4, toneBase: 230, toneRange: -38, roughDepth: 0.18 },
+  caiman: { field: caimanField, normalStrength: 2.6, toneBase: 185, toneRange: 62, roughDepth: 0.3 },
 }
 
 function dataTexture(data, colorSpace = THREE.NoColorSpace) {
@@ -68,39 +168,44 @@ function dataTexture(data, colorSpace = THREE.NoColorSpace) {
   return tex
 }
 
-export function getLeatherMaps() {
-  if (cache) return cache
+export function getLeatherMaps(type = 'calf') {
+  if (cache[type]) return cache[type]
+  const params = TYPE_PARAMS[type] ?? TYPE_PARAMS.calf
 
-  const height = buildHeightField()
+  const height = params.field()
   const H = (x, y) => height[((y + SIZE) % SIZE) * SIZE + ((x + SIZE) % SIZE)]
 
   const albedo = new Uint8Array(SIZE * SIZE * 4)
   const normal = new Uint8Array(SIZE * SIZE * 4)
   const rough = new Uint8Array(SIZE * SIZE * 4)
-  const strength = 1.7
+  const mottleNoise = rng(91)
 
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const i = (y * SIZE + x) * 4
       const h = H(x, y)
 
-      const dx = (H(x + 1, y) - H(x - 1, y)) * strength
-      const dy = (H(x, y + 1) - H(x, y - 1)) * strength
+      const dx = (H(x + 1, y) - H(x - 1, y)) * params.normalStrength
+      const dy = (H(x, y + 1) - H(x, y - 1)) * params.normalStrength
       const inv = 1 / Math.hypot(dx, dy, 1)
       normal[i] = (-dx * inv * 0.5 + 0.5) * 255
       normal[i + 1] = (-dy * inv * 0.5 + 0.5) * 255
       normal[i + 2] = (inv * 0.5 + 0.5) * 255
       normal[i + 3] = 255
 
-      // Dye sits darker in the creases, lighter on the pebble tops.
-      const tone = Math.max(0, Math.min(255, 205 + h * 46 + (Math.random() - 0.5) * 10))
+      // Dye sits darker in the recesses (or on quill tops for ostrich,
+      // where toneRange is negative).
+      const tone = Math.max(
+        0,
+        Math.min(255, params.toneBase + h * params.toneRange + (mottleNoise() - 0.5) * 10),
+      )
       albedo[i] = tone
       albedo[i + 1] = tone
       albedo[i + 2] = tone
       albedo[i + 3] = 255
 
-      // Pebble tops burnish slightly shinier than the valleys.
-      const r = 255 * (1 - 0.22 * h)
+      // High spots burnish shinier (negative depth = high spots rougher).
+      const r = 255 * Math.min(1, Math.max(0.4, 1 - params.roughDepth * h))
       rough[i] = r
       rough[i + 1] = r
       rough[i + 2] = r
@@ -108,10 +213,10 @@ export function getLeatherMaps() {
     }
   }
 
-  cache = {
+  cache[type] = {
     map: dataTexture(albedo, THREE.SRGBColorSpace),
     normalMap: dataTexture(normal),
     roughnessMap: dataTexture(rough),
   }
-  return cache
+  return cache[type]
 }
