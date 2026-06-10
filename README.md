@@ -4,7 +4,12 @@ A 3D mockup tool for designing bespoke handmade boots. Spin a boot around in
 the browser, swap leathers and stitching, and export snapshot images to share
 with clients during consultations.
 
-## Running it
+## Live app
+
+Every push to `main` auto-deploys to GitHub Pages:
+**https://davidrangel6-dev.github.io/BBB/**
+
+## Running it locally
 
 ```bash
 npm install
