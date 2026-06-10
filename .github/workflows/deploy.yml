@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Manual-only until hosting is decided: GitHub Pages needs the repo to be
+# public (or a paid plan). To re-enable auto-deploy, restore the push
+# trigger:
+#   push:
+#     branches: [main]
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
