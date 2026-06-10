@@ -120,29 +120,56 @@ function ostrichField() {
 }
 
 function caimanField() {
-  // Rounded rectangular scale tiles with deep creases between them.
+  // Caiman belly: even rows of rectangular tile scales (brick-offset),
+  // each scale gently domed with crinkling inside (bony deposits), one
+  // follicle pore per scale, deep creases between scales, and uneven
+  // per-scale dye take.
   const cols = 5
-  const rows = 8
+  const rows = 7
   const rand = rng(57)
+  const rowPhase = []
+  for (let r = 0; r < rows; r++) rowPhase.push((Math.floor(rand() * 3) * 0.5) / cols + rand() * 0.06)
+  const cellTone = []
   const cellLift = []
-  for (let i = 0; i < cols * rows; i++) cellLift.push(0.8 + rand() * 0.25)
+  const poreU = []
+  const poreV = []
+  for (let i = 0; i < cols * rows; i++) {
+    cellTone.push((rand() - 0.5) * 30)
+    cellLift.push(0.82 + rand() * 0.22)
+    poreU.push(0.3 + rand() * 0.4)
+    poreV.push(0.22 + rand() * 0.3)
+  }
+  const crinkle = voronoiField(34, rng(63))
   const noise = rng(61)
   const h = new Float32Array(SIZE * SIZE)
+  const tint = new Float32Array(SIZE * SIZE)
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
-      const u = (x / SIZE) * cols
+      const i = y * SIZE + x
       const v = (y / SIZE) * rows
-      const col = Math.floor(u)
-      const row = Math.floor(v)
-      const lu = u - col
-      const lv = v - row
-      const edge = Math.min(Math.min(lu, 1 - lu) * 7, Math.min(lv, 1 - lv) * 9, 1)
-      const dome = 1 - ((lu - 0.5) ** 2 + (lv - 0.5) ** 2) * 0.6
-      const lift = cellLift[row * cols + col]
-      h[y * SIZE + x] = Math.pow(Math.max(edge, 0), 0.55) * dome * lift + (noise() - 0.5) * 0.04
+      const row = Math.floor(v) % rows
+      const u = ((x / SIZE) + rowPhase[row]) * cols
+      const col = ((Math.floor(u) % cols) + cols) % cols
+      const lu = u - Math.floor(u)
+      const lv = v - Math.floor(v)
+      const ci = row * cols + col
+      const eu = Math.min(1, Math.min(lu, 1 - lu) * 7)
+      const ev = Math.min(1, Math.min(lv, 1 - lv) * 9)
+      // product rounds the scale corners naturally
+      const plateau = Math.pow(eu * ev, 0.4)
+      const dome = 1 - ((lu - 0.5) ** 2 * 1.1 + (lv - 0.5) ** 2 * 0.7)
+      let hh = plateau * dome * cellLift[ci]
+      // crinkling inside the scale
+      hh -= plateau * 0.16 * (1 - crinkle[i])
+      // follicle pore
+      const du = (lu - poreU[ci]) * 7
+      const dv = (lv - poreV[ci]) * 9
+      hh -= 0.5 * Math.exp(-(du * du + dv * dv) * 3.5) * plateau
+      h[i] = Math.max(0, hh) + (noise() - 0.5) * 0.03
+      tint[i] = cellTone[ci] * plateau
     }
   }
-  return h
+  return { h, tint }
 }
 
 const TYPE_PARAMS = {
@@ -150,7 +177,7 @@ const TYPE_PARAMS = {
   smooth: { field: smoothField, normalStrength: 0.7, toneBase: 225, toneRange: 22, roughDepth: 0.1 },
   suede: { field: suedeField, normalStrength: 1.2, toneBase: 215, toneRange: 34, roughDepth: -0.08 },
   ostrich: { field: ostrichField, normalStrength: 2.4, toneBase: 230, toneRange: -38, roughDepth: 0.18 },
-  caiman: { field: caimanField, normalStrength: 2.6, toneBase: 185, toneRange: 62, roughDepth: 0.3 },
+  caiman: { field: caimanField, normalStrength: 2.8, toneBase: 190, toneRange: 55, roughDepth: 0.4 },
 }
 
 function dataTexture(data, colorSpace = THREE.NoColorSpace) {
@@ -172,7 +199,9 @@ export function getLeatherMaps(type = 'calf') {
   if (cache[type]) return cache[type]
   const params = TYPE_PARAMS[type] ?? TYPE_PARAMS.calf
 
-  const height = params.field()
+  const fieldResult = params.field()
+  const height = fieldResult instanceof Float32Array ? fieldResult : fieldResult.h
+  const tintArr = fieldResult instanceof Float32Array ? null : fieldResult.tint
   const H = (x, y) => height[((y + SIZE) % SIZE) * SIZE + ((x + SIZE) % SIZE)]
 
   const albedo = new Uint8Array(SIZE * SIZE * 4)
@@ -194,10 +223,17 @@ export function getLeatherMaps(type = 'calf') {
       normal[i + 3] = 255
 
       // Dye sits darker in the recesses (or on quill tops for ostrich,
-      // where toneRange is negative).
+      // where toneRange is negative), with per-scale variance when the
+      // type provides it.
       const tone = Math.max(
         0,
-        Math.min(255, params.toneBase + h * params.toneRange + (mottleNoise() - 0.5) * 10),
+        Math.min(
+          255,
+          params.toneBase +
+            h * params.toneRange +
+            (tintArr ? tintArr[y * SIZE + x] : 0) +
+            (mottleNoise() - 0.5) * 10,
+        ),
       )
       albedo[i] = tone
       albedo[i + 1] = tone
