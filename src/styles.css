@@ -244,6 +244,17 @@ input[type='range'] {
   color: white;
 }
 
+.pattern-preview {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  margin-top: 8px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
 .hint {
   font-size: 12px;
   color: #7a6f5c;

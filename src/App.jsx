@@ -33,6 +33,27 @@ export default function App() {
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(design))
   }, [design])
 
+  // Downscale imported pattern images so designs stay small enough to
+  // autosave in the browser.
+  function importPatternFile(file) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const max = 512
+        const scale = Math.min(1, max / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(img.width * scale))
+        canvas.height = Math.max(1, Math.round(img.height * scale))
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        setDesign((d) => ({ ...d, stitchPattern: canvas.toDataURL('image/png') }))
+      }
+      img.onerror = () => alert('Could not read that image. Try a PNG, JPG, or SVG.')
+      img.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  }
+
   function importDesignFile(file) {
     file.text().then((text) => {
       try {
@@ -98,6 +119,7 @@ export default function App() {
           onSnapshot={() => downloadSnapshot(design.name)}
           onExport={() => exportDesignFile(design)}
           onImport={importDesignFile}
+          onImportPattern={importPatternFile}
           hasCustomModel={Boolean(customScene)}
           onClearCustomModel={() => setCustomScene(null)}
         />

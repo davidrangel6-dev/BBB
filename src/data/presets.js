@@ -1,17 +1,22 @@
 // Leather, thread, and finish presets for the mockup studio.
-// Hex values approximate dyed full-grain leather tones.
+// Leather palette follows Tandy Leather's calfskin line: natural veg-tan
+// tooling calf plus their classic dye colors (tandyleather.com).
 
 export const LEATHERS = [
-  { id: 'chestnut', name: 'Chestnut', color: '#7a4a26' },
-  { id: 'whiskey', name: 'Whiskey', color: '#9a6230' },
-  { id: 'caramel', name: 'Caramel', color: '#b07a3e' },
-  { id: 'black-cherry', name: 'Black Cherry', color: '#4b1f24' },
-  { id: 'crimson', name: 'Crimson', color: '#7e2528' },
-  { id: 'espresso', name: 'Espresso', color: '#3a2a20' },
-  { id: 'midnight', name: 'Midnight Black', color: '#1b1b1d' },
-  { id: 'bone', name: 'Bone', color: '#d8cdb4' },
-  { id: 'sage', name: 'Sage', color: '#6e7b5e' },
+  { id: 'natural', name: 'Natural Veg-Tan', color: '#d9b386' },
+  { id: 'buckskin', name: 'Buckskin', color: '#c8a368' },
+  { id: 'tan', name: 'Tan', color: '#b8824a' },
+  { id: 'saddle-tan', name: 'Saddle Tan', color: '#a86a32' },
+  { id: 'whiskey', name: 'Whiskey', color: '#8e5a27' },
+  { id: 'chestnut', name: 'Chestnut', color: '#6f4423' },
+  { id: 'briar', name: 'Briar Brown', color: '#5d4030' },
+  { id: 'chocolate', name: 'Chocolate', color: '#462e21' },
+  { id: 'mahogany', name: 'Dark Mahogany', color: '#54271e' },
+  { id: 'burgundy', name: 'Burgundy', color: '#5a2230' },
+  { id: 'navy', name: 'Navy', color: '#2b3a5e' },
   { id: 'bluebonnet', name: 'Bluebonnet Blue', color: '#33518f' },
+  { id: 'bone', name: 'Bone', color: '#ddd2bb' },
+  { id: 'black', name: 'Black', color: '#1d1c1d' },
 ]
 
 export const THREADS = [
@@ -46,17 +51,18 @@ export const DEFAULT_DESIGN = {
   name: 'Untitled Boot',
   shaft: 'bluebonnet',
   vamp: 'chestnut',
-  heel: 'espresso',
+  heel: 'chocolate',
   straps: 'chestnut',
   thread: 'cream',
   finish: 'classic',
   toe: 'round',
   heelStyle: 'standard',
   shaftHeight: 13.5,
+  stitchPattern: null,
 }
 
 export function leatherById(id) {
-  return LEATHERS.find((l) => l.id === id) ?? LEATHERS[0]
+  return LEATHERS.find((l) => l.id === id) ?? LEATHERS[5]
 }
 
 export function threadById(id) {

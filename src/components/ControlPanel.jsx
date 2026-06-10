@@ -60,10 +60,12 @@ export default function ControlPanel({
   onSnapshot,
   onExport,
   onImport,
+  onImportPattern,
   hasCustomModel,
   onClearCustomModel,
 }) {
   const fileRef = useRef(null)
+  const patternRef = useRef(null)
   const set = (key) => (value) => setDesign((d) => ({ ...d, [key]: value }))
   const savedNames = Object.keys(savedDesigns)
 
@@ -91,6 +93,39 @@ export default function ControlPanel({
       <section>
         <h2>Stitching</h2>
         <SwatchRow label="Thread" options={THREADS} value={design.thread} onPick={set('thread')} />
+        <div className="field">
+          <div className="field-label">Shaft pattern</div>
+          <div className="actions">
+            <button type="button" onClick={() => patternRef.current?.click()}>
+              Import pattern
+            </button>
+            <button
+              type="button"
+              disabled={!design.stitchPattern}
+              onClick={() => set('stitchPattern')(null)}
+            >
+              Classic flames
+            </button>
+            <input
+              ref={patternRef}
+              type="file"
+              accept="image/*,.svg"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) onImportPattern(file)
+                e.target.value = ''
+              }}
+            />
+          </div>
+          {design.stitchPattern && (
+            <img className="pattern-preview" src={design.stitchPattern} alt="Stitch pattern" />
+          )}
+          <p className="hint">
+            Upload a stitch design as an image — black-on-white line art works
+            best. It's drawn on both sides of the shaft in the thread color.
+          </p>
+        </div>
       </section>
 
       <section>
