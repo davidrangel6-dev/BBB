@@ -30,11 +30,15 @@ function extrudeProfile(shape, width, bevel, smooth = false) {
   return geo
 }
 
-function footShape(toe) {
+// The sole arches: flat on the ground from toe to ball (x ≈ 5.5), then
+// rises toward the rear where the heel block (heelH tall) meets the
+// ground. So taller heels raise the back of the boot while the toe stays
+// planted, like a real boot.
+function footShape(toe, heelH) {
   const s = new THREE.Shape()
-  s.moveTo(0.25, 0.5)
-  s.lineTo(0.45, 4.3)
-  s.quadraticCurveTo(2.2, 4.9, 3.9, 4.0)
+  s.moveTo(0.25, heelH + 0.5)
+  s.lineTo(0.45, heelH + 3.6)
+  s.quadraticCurveTo(2.2, heelH * 0.5 + 4.7, 3.9, 4.0)
   s.quadraticCurveTo(5.6, 3.0, 7.2, 1.9)
   if (toe === 'snip') {
     s.quadraticCurveTo(9.6, 1.05, 11.0, 0.62)
@@ -46,18 +50,21 @@ function footShape(toe) {
     s.quadraticCurveTo(9.4, 1.2, 10.2, 0.95)
     s.quadraticCurveTo(10.7, 0.8, 10.7, 0.5)
   }
-  s.lineTo(0.25, 0.5)
+  s.lineTo(5.5, 0.5)
+  s.quadraticCurveTo(2.6, heelH * 0.35 + 0.5, 0.25, heelH + 0.5)
   return s
 }
 
-function soleShape(toe) {
+function soleShape(toe, heelH) {
   const tip = toe === 'snip' ? 11.15 : toe === 'square' ? 10.6 : 10.85
   const s = new THREE.Shape()
-  s.moveTo(-0.15, 0)
-  s.lineTo(-0.15, 0.55)
+  s.moveTo(-0.15, heelH)
+  s.lineTo(-0.15, heelH + 0.55)
+  s.quadraticCurveTo(2.6, heelH * 0.35 + 0.55, 5.5, 0.55)
   s.lineTo(tip, 0.55)
   s.lineTo(tip, 0)
-  s.lineTo(-0.15, 0)
+  s.lineTo(5.5, 0)
+  s.quadraticCurveTo(2.6, heelH * 0.35, -0.15, heelH)
   return s
 }
 
@@ -75,11 +82,11 @@ function shaftShape(height) {
 
 function heelShape(height) {
   const s = new THREE.Shape()
-  s.moveTo(0.1, 0.05)
-  s.lineTo(2.6, 0.05)
-  s.lineTo(2.2, -height)
-  s.quadraticCurveTo(1.35, -height - 0.08, 0.5, -height)
-  s.lineTo(0.1, 0.05)
+  s.moveTo(0.1, height + 0.1)
+  s.quadraticCurveTo(1.5, height * 0.7 + 0.1, 2.6, height * 0.55 + 0.1)
+  s.lineTo(2.25, 0)
+  s.quadraticCurveTo(1.35, -0.06, 0.5, 0)
+  s.lineTo(0.1, height + 0.1)
   return s
 }
 
@@ -124,8 +131,8 @@ export default function BootModel({ design }) {
 
   const geos = useMemo(() => {
     return {
-      vamp: extrudeProfile(footShape(design.toe), 3.5, 0.4, true),
-      sole: extrudeProfile(soleShape(design.toe), 3.8, 0.18),
+      vamp: extrudeProfile(footShape(design.toe, heelHeight), 3.5, 0.4, true),
+      sole: extrudeProfile(soleShape(design.toe, heelHeight), 3.8, 0.18),
       shaft: extrudeProfile(shaftShape(design.shaftHeight), SHAFT_WIDTH, 0.45, true),
       heel: extrudeProfile(heelShape(heelHeight), 3.3, 0.15),
       stitches: stitchGeometries(design.shaftHeight),
@@ -146,7 +153,7 @@ export default function BootModel({ design }) {
   const strapY = 0.5 + design.shaftHeight - 1.0
 
   return (
-    <group position={[-5.2, heelHeight, 0]}>
+    <group position={[-5.2, 0, 0]}>
       <mesh geometry={geos.shaft} material={materials.shaft} castShadow receiveShadow />
       <mesh geometry={geos.vamp} material={materials.vamp} castShadow receiveShadow />
       <mesh geometry={geos.sole} material={materials.heel} castShadow receiveShadow />
