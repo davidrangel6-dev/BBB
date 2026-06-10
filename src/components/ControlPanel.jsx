@@ -3,6 +3,7 @@ import {
   FINISHES,
   HEELS,
   LEATHERS,
+  TEXTURES,
   THREADS,
   TOE_SHAPES,
 } from '../data/presets'
@@ -84,7 +85,19 @@ export default function ControlPanel({
       <section>
         <h2>Leather</h2>
         <SwatchRow label="Shaft" options={LEATHERS} value={design.shaft} onPick={set('shaft')} />
+        <SegmentedRow
+          label="Shaft hide"
+          options={TEXTURES}
+          value={design.shaftTexture}
+          onPick={set('shaftTexture')}
+        />
         <SwatchRow label="Vamp & toe" options={LEATHERS} value={design.vamp} onPick={set('vamp')} />
+        <SegmentedRow
+          label="Vamp hide"
+          options={TEXTURES}
+          value={design.vampTexture}
+          onPick={set('vampTexture')}
+        />
         <SwatchRow label="Heel & sole" options={LEATHERS} value={design.heel} onPick={set('heel')} />
         <SwatchRow label="Pull straps" options={LEATHERS} value={design.straps} onPick={set('straps')} />
         <SegmentedRow label="Finish" options={FINISHES} value={design.finish} onPick={set('finish')} />

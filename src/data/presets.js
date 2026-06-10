@@ -15,8 +15,21 @@ export const LEATHERS = [
   { id: 'burgundy', name: 'Burgundy', color: '#5a2230' },
   { id: 'navy', name: 'Navy', color: '#2b3a5e' },
   { id: 'bluebonnet', name: 'Bluebonnet Blue', color: '#33518f' },
+  { id: 'turquoise', name: 'Turquoise', color: '#2e8fa3' },
+  { id: 'sky', name: 'Sky Blue', color: '#a8c3de' },
+  { id: 'rose', name: 'Rose', color: '#bd7f93' },
   { id: 'bone', name: 'Bone', color: '#ddd2bb' },
   { id: 'black', name: 'Black', color: '#1d1c1d' },
+]
+
+// Leather texture types, per the hides used in western bootmaking:
+// smooth/calf cowhide for shafts, exotics and roughout for vamps.
+export const TEXTURES = [
+  { id: 'calf', name: 'Calf' },
+  { id: 'smooth', name: 'Smooth' },
+  { id: 'suede', name: 'Roughout' },
+  { id: 'ostrich', name: 'Ostrich' },
+  { id: 'caiman', name: 'Caiman' },
 ]
 
 export const THREADS = [
@@ -59,6 +72,8 @@ export const DEFAULT_DESIGN = {
   heelStyle: 'standard',
   shaftHeight: 13.5,
   stitchPattern: null,
+  shaftTexture: 'smooth',
+  vampTexture: 'calf',
 }
 
 export function leatherById(id) {

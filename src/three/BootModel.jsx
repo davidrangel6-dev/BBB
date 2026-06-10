@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { heelById, threadById } from '../data/presets'
+import { heelById, leatherById, threadById } from '../data/presets'
+import { getLeatherMaps } from './leatherMaps'
 import { useBootMaterials } from './materials'
 
 // Procedural placeholder boot. The shaft is a true elliptical cylinder
@@ -92,14 +93,33 @@ function soleShape(toe, heelH) {
   return s
 }
 
-function heelShape(height) {
-  const s = new THREE.Shape()
-  s.moveTo(0.1, height + 0.1)
-  s.quadraticCurveTo(1.5, height * 0.7 + 0.1, 2.6, height * 0.55 + 0.1)
-  s.lineTo(2.25, 0)
-  s.quadraticCurveTo(1.35, -0.06, 0.5, 0)
-  s.lineTo(0.1, height + 0.1)
-  return s
+// A real western heel is a stack of leather lifts: horizontal layers up
+// to where the heel meets the arch, a wedge tucking under the sole, and
+// a dark top-lift cap on the ground.
+function heelStack(heelH) {
+  const stackTop = 0.55 * heelH + 0.1
+  const xBack = (y) => 0.5 - (0.4 * y) / (heelH + 0.1)
+  const xFront = (y) => 2.25 + 0.35 * Math.min(1, y / (0.55 * heelH))
+  const lifts = []
+  const count = Math.max(3, Math.round(stackTop / 0.27))
+  for (let i = 0; i < count; i++) {
+    const y0 = (stackTop * i) / count
+    const y1 = (stackTop * (i + 1)) / count + 0.012
+    const s = new THREE.Shape()
+    s.moveTo(xBack(y0), y0)
+    s.lineTo(xFront(y0), y0)
+    s.lineTo(xFront(y1), y1)
+    s.lineTo(xBack(y1), y1)
+    s.lineTo(xBack(y0), y0)
+    // Alternate widths a hair so the stack reads as individual layers.
+    lifts.push(extrudeProfile(s, 3.28 - (i % 2) * 0.05, 0.05))
+  }
+  const w = new THREE.Shape()
+  w.moveTo(0.1, heelH + 0.1)
+  w.quadraticCurveTo(1.5, heelH * 0.78 + 0.1, 2.6, stackTop)
+  w.lineTo(xBack(stackTop), stackTop)
+  w.lineTo(0.1, heelH + 0.1)
+  return { lifts, wedge: extrudeProfile(w, 3.3, 0.15) }
 }
 
 // Depth (z) of the shaft tube's surface at a given x, so stitching can
@@ -216,7 +236,7 @@ export default function BootModel({ design }) {
         inset: 0.45,
       }),
       sole: extrudeProfile(soleShape(design.toe, heelHeight), 3.8, 0.25, { inset: 0.1 }),
-      heel: extrudeProfile(heelShape(heelHeight), 3.3, 0.3, { inset: 0.2 }),
+      heel: heelStack(heelHeight),
       stitches: stitchGeometries(design.shaftHeight),
     }
   }, [design.toe, design.shaftHeight, heelHeight])
@@ -226,10 +246,35 @@ export default function BootModel({ design }) {
       geos.shaftTube.dispose()
       geos.vamp.dispose()
       geos.sole.dispose()
-      geos.heel.dispose()
+      geos.heel.lifts.forEach((g) => g.dispose())
+      geos.heel.wedge.dispose()
       geos.stitches.forEach((g) => g.dispose())
     }
   }, [geos])
+
+  // Stacked-lift materials: alternating natural-leaning tones derived from
+  // the heel leather, with a near-black rubber top lift on the ground.
+  const liftMaterials = useMemo(() => {
+    const natural = new THREE.Color('#c9a578')
+    const base = new THREE.Color(leatherById(design.heel).color).lerp(natural, 0.45)
+    const maps = getLeatherMaps('calf')
+    const make = (color) =>
+      new THREE.MeshStandardMaterial({
+        color,
+        map: maps.map,
+        normalMap: maps.normalMap,
+        roughness: 0.85,
+      })
+    return {
+      light: make(base.clone().offsetHSL(0, 0, 0.05)),
+      dark: make(base.clone().offsetHSL(0, 0, -0.05)),
+      cap: make(new THREE.Color('#2b2522')),
+    }
+  }, [design.heel])
+
+  useEffect(() => {
+    return () => Object.values(liftMaterials).forEach((m) => m.dispose())
+  }, [liftMaterials])
 
   const top = 0.5 + design.shaftHeight
   const cylHeight = top - SHAFT_BOTTOM
@@ -261,7 +306,16 @@ export default function BootModel({ design }) {
       </mesh>
       <mesh geometry={geos.vamp} material={materials.vamp} castShadow receiveShadow />
       <mesh geometry={geos.sole} material={materials.heel} castShadow receiveShadow />
-      <mesh geometry={geos.heel} material={materials.heel} castShadow receiveShadow />
+      {geos.heel.lifts.map((g, i) => (
+        <mesh
+          key={i}
+          geometry={g}
+          material={i === 0 ? liftMaterials.cap : i % 2 ? liftMaterials.light : liftMaterials.dark}
+          castShadow
+          receiveShadow
+        />
+      ))}
+      <mesh geometry={geos.heel.wedge} material={materials.heel} castShadow receiveShadow />
       {decalTex
         ? [0, Math.PI].map((thetaMid) => (
             <mesh
