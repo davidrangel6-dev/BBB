@@ -4,15 +4,19 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { heelById, threadById } from '../data/presets'
 import { useBootMaterials } from './materials'
 
-// Procedural placeholder boot, built from side-profile shapes extruded
-// across the boot's width. Dimensions are roughly in inches. Each part is
-// a separate mesh so leathers can be swapped independently — the same part
-// names the real commissioned .glb model should use.
+// Procedural placeholder boot. The shaft is a true elliptical cylinder
+// (hollow tube with a flared top and bound collar), the foot is a
+// side-profile extrusion with rounded edges. Dimensions are roughly in
+// inches. Each part is a separate mesh so leathers swap independently.
 
-// A large bevel with a negative bevelOffset rounds the cross-section
-// (less boxy) while keeping the side silhouette close to the drawn
-// profile: the body is inset and the bevel swells back out to the
-// original outline.
+// Shaft tube dimensions (centered on the ankle at x = 2.5).
+const SHAFT_CX = 2.5
+const SHAFT_BOTTOM = 2.8
+const SHAFT_RX_TOP = 2.7 // front-back radius at the opening
+const SHAFT_RX_BOT = 2.55
+const SHAFT_RZ_TOP = 1.95 // side-to-side radius at the opening
+const SHAFT_RZ_BOT = 1.83
+
 function extrudeProfile(shape, width, bevel, { smooth = false, inset = 0 } = {}) {
   const depth = width - bevel * 2
   let geo = new THREE.ExtrudeGeometry(shape, {
@@ -25,8 +29,6 @@ function extrudeProfile(shape, width, bevel, { smooth = false, inset = 0 } = {})
     curveSegments: 24,
   })
   if (smooth) {
-    // Extrusions are flat-shaded by default; weld vertices and recompute
-    // normals so curved leather surfaces shade smoothly.
     geo.deleteAttribute('normal')
     geo = mergeVertices(geo)
     geo.computeVertexNormals()
@@ -35,15 +37,32 @@ function extrudeProfile(shape, width, bevel, { smooth = false, inset = 0 } = {})
   return geo
 }
 
+// Cylinder UVs span 0–1 around the tube; rescale them to inch-space so
+// the leather grain matches the extruded parts.
+function tubeGeometry(cylHeight) {
+  const geo = new THREE.CylinderGeometry(
+    1,
+    SHAFT_RX_BOT / SHAFT_RX_TOP,
+    cylHeight,
+    64,
+    1,
+    true,
+  )
+  const uv = geo.attributes.uv
+  const circumference = Math.PI * (SHAFT_RX_TOP + SHAFT_RZ_TOP)
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, uv.getX(i) * circumference, uv.getY(i) * cylHeight)
+  }
+  return geo
+}
+
 // The sole arches: flat on the ground from toe to ball (x ≈ 5.5), then
-// rises toward the rear where the heel block (heelH tall) meets the
-// ground. So taller heels raise the back of the boot while the toe stays
-// planted, like a real boot.
+// rises toward the rear where the heel block meets the ground.
 function footShape(toe, heelH) {
   const s = new THREE.Shape()
   s.moveTo(0.25, heelH + 0.5)
-  s.lineTo(0.45, heelH + 3.6)
-  s.quadraticCurveTo(2.2, heelH * 0.5 + 4.7, 3.9, 4.0)
+  s.lineTo(0.45, heelH + 3.3)
+  s.quadraticCurveTo(2.2, heelH * 0.5 + 4.4, 3.9, 4.0)
   s.quadraticCurveTo(5.6, 3.0, 7.2, 1.9)
   if (toe === 'snip') {
     s.quadraticCurveTo(9.6, 1.05, 11.0, 0.62)
@@ -73,18 +92,6 @@ function soleShape(toe, heelH) {
   return s
 }
 
-function shaftShape(height) {
-  const top = 0.5 + height
-  const s = new THREE.Shape()
-  // The bottom edge tucks below the vamp's top edge so no seam gap shows.
-  s.moveTo(0.15, 2.9)
-  s.lineTo(-0.15, top)
-  s.quadraticCurveTo(2.5, top + 0.5, 5.15, top)
-  s.lineTo(4.85, 3.0)
-  s.quadraticCurveTo(2.5, 4.1, 0.15, 2.9)
-  return s
-}
-
 function heelShape(height) {
   const s = new THREE.Shape()
   s.moveTo(0.1, height + 0.1)
@@ -95,37 +102,50 @@ function heelShape(height) {
   return s
 }
 
-// Wavy "flame" stitch line running up the shaft.
+// Depth (z) of the shaft tube's surface at a given x, so stitching can
+// hug the curved leather instead of floating beside it.
+function shaftSurfaceZ(x) {
+  const a = (SHAFT_RX_TOP + SHAFT_RX_BOT) / 2
+  const b = (SHAFT_RZ_TOP + SHAFT_RZ_BOT) / 2
+  const t = (x - SHAFT_CX) / a
+  return (b + 0.05) * Math.sqrt(Math.max(0.02, 1 - t * t))
+}
+
+// Wavy "flame" stitch line running up the shaft, wrapped onto the tube.
 function flameCurve(cx, baseY, topY, amp, phase) {
   const pts = []
-  const n = 16
+  const n = 20
   for (let i = 0; i <= n; i++) {
     const t = i / n
     const y = baseY + (topY - baseY) * t
     const x = cx + Math.sin(t * Math.PI * 3 + phase) * amp * (1 - t * 0.5)
-    pts.push(new THREE.Vector3(x, y, 0))
+    pts.push(new THREE.Vector3(x, y, shaftSurfaceZ(x)))
   }
   return new THREE.CatmullRomCurve3(pts)
 }
 
-// The rounded shaft's flat side face is inset from the profile outline,
-// so stitching has to stay inside roughly x 0.8–4.2 and below top - 0.9.
+// Horizontal collar row wrapped around the front face of the tube.
+function collarCurve(y) {
+  const pts = []
+  const n = 24
+  for (let i = 0; i <= n; i++) {
+    const x = 1.0 + ((4.0 - 1.0) * i) / n
+    pts.push(new THREE.Vector3(x, y, shaftSurfaceZ(x)))
+  }
+  return new THREE.CatmullRomCurve3(pts)
+}
+
 function stitchGeometries(shaftHeight) {
   const top = 0.5 + shaftHeight
   const geos = []
   const flames = [
-    flameCurve(1.5, 4.8, top - 1.5, 0.35, 0),
-    flameCurve(2.55, 4.6, top - 1.3, 0.4, Math.PI / 2),
-    flameCurve(3.6, 4.8, top - 1.5, 0.35, Math.PI),
+    flameCurve(1.6, 4.8, top - 1.5, 0.35, 0),
+    flameCurve(2.5, 4.6, top - 1.3, 0.4, Math.PI / 2),
+    flameCurve(3.4, 4.8, top - 1.5, 0.35, Math.PI),
   ]
-  for (const c of flames) geos.push(new THREE.TubeGeometry(c, 48, 0.055, 6))
-  // Collar rows near the top opening.
+  for (const c of flames) geos.push(new THREE.TubeGeometry(c, 64, 0.055, 6))
   for (const y of [top - 1.0, top - 1.25]) {
-    const row = new THREE.LineCurve3(
-      new THREE.Vector3(0.9, y, 0),
-      new THREE.Vector3(4.15, y, 0),
-    )
-    geos.push(new THREE.TubeGeometry(row, 2, 0.05, 6))
+    geos.push(new THREE.TubeGeometry(collarCurve(y), 48, 0.05, 6))
   }
   return geos
 }
@@ -179,8 +199,6 @@ function useStitchDecalTexture(dataUrl, threadColor) {
   return tex
 }
 
-const SHAFT_WIDTH = 3.7
-
 export default function BootModel({ design }) {
   const materials = useBootMaterials(design)
   const heelHeight = heelById(design.heelStyle).height
@@ -190,16 +208,14 @@ export default function BootModel({ design }) {
   )
 
   const geos = useMemo(() => {
+    const top = 0.5 + design.shaftHeight
     return {
+      shaftTube: tubeGeometry(top - SHAFT_BOTTOM),
       vamp: extrudeProfile(footShape(design.toe, heelHeight), 3.5, 0.8, {
         smooth: true,
         inset: 0.45,
       }),
       sole: extrudeProfile(soleShape(design.toe, heelHeight), 3.8, 0.25, { inset: 0.1 }),
-      shaft: extrudeProfile(shaftShape(design.shaftHeight), SHAFT_WIDTH, 0.95, {
-        smooth: true,
-        inset: 0.95,
-      }),
       heel: extrudeProfile(heelShape(heelHeight), 3.3, 0.3, { inset: 0.2 }),
       stitches: stitchGeometries(design.shaftHeight),
     }
@@ -207,16 +223,17 @@ export default function BootModel({ design }) {
 
   useEffect(() => {
     return () => {
+      geos.shaftTube.dispose()
       geos.vamp.dispose()
       geos.sole.dispose()
-      geos.shaft.dispose()
       geos.heel.dispose()
       geos.stitches.forEach((g) => g.dispose())
     }
   }, [geos])
 
   const top = 0.5 + design.shaftHeight
-  const stitchZ = SHAFT_WIDTH / 2 + 0.03
+  const cylHeight = top - SHAFT_BOTTOM
+  const cylCenterY = (top + SHAFT_BOTTOM) / 2
   const decalBottom = 4.9
   const decalTop = top - 1.5
   const decalCenter = (decalBottom + decalTop) / 2
@@ -224,18 +241,41 @@ export default function BootModel({ design }) {
 
   return (
     <group position={[-5.2, 0, 0]}>
-      <mesh geometry={geos.shaft} material={materials.shaft} castShadow receiveShadow />
+      {/* Shaft: hollow elliptical tube with a flared, bound opening */}
+      <mesh
+        geometry={geos.shaftTube}
+        material={materials.shaft}
+        position={[SHAFT_CX, cylCenterY, 0]}
+        scale={[SHAFT_RX_TOP, 1, SHAFT_RZ_TOP]}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        material={materials.shaft}
+        position={[SHAFT_CX, top, 0]}
+        rotation-x={Math.PI / 2}
+        scale={[SHAFT_RX_TOP, SHAFT_RZ_TOP, 1]}
+        castShadow
+      >
+        <torusGeometry args={[1, 0.06, 12, 64]} />
+      </mesh>
       <mesh geometry={geos.vamp} material={materials.vamp} castShadow receiveShadow />
       <mesh geometry={geos.sole} material={materials.heel} castShadow receiveShadow />
       <mesh geometry={geos.heel} material={materials.heel} castShadow receiveShadow />
       {decalTex
-        ? [1, -1].map((side) => (
+        ? [0, Math.PI].map((thetaMid) => (
             <mesh
-              key={side}
-              position={[2.5, decalCenter, side * stitchZ]}
-              rotation={[0, side === 1 ? 0 : Math.PI, 0]}
+              key={thetaMid}
+              position={[SHAFT_CX, decalCenter, 0]}
+              scale={[
+                (SHAFT_RX_TOP + SHAFT_RX_BOT) / 2 + 0.06,
+                1,
+                (SHAFT_RZ_TOP + SHAFT_RZ_BOT) / 2 + 0.06,
+              ]}
             >
-              <planeGeometry args={[3.1, decalHeight]} />
+              <cylinderGeometry
+                args={[1, 1, decalHeight, 32, 1, true, thetaMid - 0.8, 1.6]}
+              />
               <meshStandardMaterial
                 map={decalTex}
                 transparent
@@ -244,21 +284,18 @@ export default function BootModel({ design }) {
               />
             </mesh>
           ))
-        : [stitchZ, -stitchZ].map((z) =>
-            geos.stitches.map((g, i) => (
-              <mesh
-                key={`${z}-${i}`}
-                geometry={g}
-                material={materials.thread}
-                position={[0, 0, z]}
-              />
-            )),
-          )}
+        : [1, -1].map((side) => (
+            <group key={side} scale={[1, 1, side]}>
+              {geos.stitches.map((g, i) => (
+                <mesh key={i} geometry={g} material={materials.thread} />
+              ))}
+            </group>
+          ))}
       {[1, -1].map((side) => (
         <mesh
           key={side}
           material={materials.straps}
-          position={[2.5, top - 1.7, side * (SHAFT_WIDTH / 2 + 0.05)]}
+          position={[SHAFT_CX, top - 1.6, side * (SHAFT_RZ_TOP - 0.04)]}
           castShadow
         >
           <boxGeometry args={[0.95, 1.7, 0.18]} />

@@ -15,6 +15,8 @@ function leatherMaterial(colorHex, finish) {
     clearcoat: finish.clearcoat,
     clearcoatRoughness: 0.35,
     envMapIntensity: 0.9,
+    // The shaft is an open tube, so its inside must render too.
+    side: THREE.DoubleSide,
   })
 }
 
