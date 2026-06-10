@@ -4,10 +4,13 @@ A 3D mockup tool for designing bespoke handmade boots. Spin a boot around in
 the browser, swap leathers and stitching, and export snapshot images to share
 with clients during consultations.
 
-## Live app
+## Hosting (not yet enabled)
 
-Every push to `main` auto-deploys to GitHub Pages:
-**https://davidrangel6-dev.github.io/BBB/**
+A GitHub Pages deploy workflow is ready in `.github/workflows/deploy.yml`,
+currently manual-only: GitHub Pages requires the repo to be public (or a
+paid GitHub plan). To go live later: make the repo public, restore the
+`push` trigger in the workflow, and the app will deploy to
+https://davidrangel6-dev.github.io/BBB/ on every push to `main`.
 
 ## Running it locally
 
