@@ -1,16 +1,20 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { finishById, leatherById, threadById } from '../data/presets'
-import { leatherBumpTexture } from '../utils/leatherTexture'
+import { getLeatherMaps } from './leatherMaps'
 
 function leatherMaterial(colorHex, finish) {
+  const maps = getLeatherMaps()
   return new THREE.MeshPhysicalMaterial({
     color: colorHex,
+    map: maps.map,
+    normalMap: maps.normalMap,
+    normalScale: new THREE.Vector2(0.7, 0.7),
+    roughnessMap: maps.roughnessMap,
     roughness: finish.roughness,
     clearcoat: finish.clearcoat,
-    clearcoatRoughness: 0.4,
-    bumpMap: leatherBumpTexture(),
-    bumpScale: 0.35,
+    clearcoatRoughness: 0.35,
+    envMapIntensity: 0.9,
   })
 }
 
