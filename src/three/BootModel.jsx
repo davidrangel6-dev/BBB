@@ -8,6 +8,7 @@ import {
   buildFootGeometry,
   buildHeelStack,
   buildSoleSlab,
+  buildSoleStitches,
 } from './footGeometry'
 
 // Procedural placeholder boot. The shaft is a tapered elliptical tube
@@ -149,6 +150,7 @@ export default function BootModel({ design }) {
       welt: buildSoleSlab(design.toe, heelHeight, 0.22, 0.5, 0.64),
       outsole: buildSoleSlab(design.toe, heelHeight, 0.16, 0, 0.52),
       heel: buildHeelStack(heelHeight),
+      soleStitches: buildSoleStitches(design.toe, heelHeight),
       stitches: stitchGeometries(design.shaftHeight),
     }
   }, [design.toe, design.shaftHeight, heelHeight])
@@ -161,6 +163,7 @@ export default function BootModel({ design }) {
       geos.outsole.dispose()
       geos.heel.lifts.forEach((g) => g.dispose())
       geos.heel.wedge.dispose()
+      geos.soleStitches.forEach((g) => g.dispose())
       geos.stitches.forEach((g) => g.dispose())
     }
   }, [geos])
@@ -239,6 +242,9 @@ export default function BootModel({ design }) {
         />
       ))}
       <mesh geometry={geos.heel.wedge} material={liftMaterials.dark} castShadow receiveShadow />
+      {geos.soleStitches.map((g, i) => (
+        <mesh key={`ss-${i}`} geometry={g} material={materials.thread} />
+      ))}
       {decalTex
         ? [0, Math.PI].map((thetaMid) => (
             <mesh

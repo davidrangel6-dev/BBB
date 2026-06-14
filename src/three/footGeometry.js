@@ -168,6 +168,57 @@ export function buildSoleSlab(toe, heelH, outset, y0, y1) {
   return geo
 }
 
+// A point on the rounded foot surface at length x and section parameter
+// s (-1..1 across the width), optionally lifted off the surface so a
+// stitch tube rides just proud of the leather.
+function footSurfacePoint(x, s, toe, heelH, tip, lift = 0) {
+  const w = Math.max(0.04, halfWidth(x, toe)) + lift
+  const baseY = archLift(x, heelH) + 0.48
+  const crown = crownHeight(x, toe, tip) + lift
+  const p = sectionExponent(x, toe, tip)
+  const y = baseY + crown * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(s), p)), 1 / p)
+  return new THREE.Vector3(x, y, w * s)
+}
+
+// Closed loop tracing the footprint perimeter at a given outset and
+// height, draped over the arch — used for welt and outsole stitch rows.
+function perimeterCurve(toe, heelH, outset, yLevel) {
+  const tip = toeTip(toe)
+  const M = 90
+  const pts = []
+  for (let i = 0; i <= M; i++) {
+    const x = -0.15 + (tip + 0.15) * (i / M)
+    pts.push(new THREE.Vector3(x, yLevel + archLift(x, heelH), halfWidth(x, toe) + outset))
+  }
+  for (let i = M; i >= 0; i--) {
+    const x = -0.15 + (tip + 0.15) * (i / M)
+    pts.push(new THREE.Vector3(x, yLevel + archLift(x, heelH), -(halfWidth(x, toe) + outset)))
+  }
+  return new THREE.CatmullRomCurve3(pts, true)
+}
+
+// Stitch rows: a double welt row on top of the welt band, a single
+// outsole row lower on the sole edge (both wrapping the whole boot,
+// toe included), and a vamp instep seam arcing over the top of the foot.
+export function buildSoleStitches(toe, heelH) {
+  const tip = toeTip(toe)
+  const geos = []
+  const perim = (outset, y, r = 0.03) =>
+    new THREE.TubeGeometry(perimeterCurve(toe, heelH, outset, y), 360, r, 6, true)
+  geos.push(perim(0.085, 0.655))
+  geos.push(perim(0.14, 0.655))
+  geos.push(perim(0.21, 0.485, 0.035))
+  for (const x0 of [4.65, 5.0]) {
+    const pts = []
+    for (let j = 0; j <= 40; j++) {
+      const s = -0.9 + (1.8 * j) / 40
+      pts.push(footSurfacePoint(x0, s, toe, heelH, tip, 0.04))
+    }
+    geos.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.03, 6))
+  }
+  return geos
+}
+
 // A real western heel is a stack of leather lifts: horizontal layers up
 // to where the heel meets the arch, a wedge tucking under the sole, and
 // a dark top-lift cap on the ground.
