@@ -3,3 +3,9 @@ dist
 .DS_Store
 *.local
 dist-standalone
+
+# planner app database
+planner/data/*.db
+planner/data/*.db-journal
+planner/data/*.db-wal
+planner/data/*.db-shm
