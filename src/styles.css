@@ -244,6 +244,49 @@ input[type='range'] {
   color: white;
 }
 
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pattern-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pattern-chip img {
+  width: 34px;
+  height: 46px;
+  object-fit: contain;
+}
+
+.pattern-flames {
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  letter-spacing: -2px;
+  color: #555;
+}
+
+.pattern-chip.selected {
+  border-color: var(--bluebonnet);
+  outline: 2px solid var(--bluebonnet);
+  outline-offset: -1px;
+}
+
 .pattern-preview {
   display: block;
   width: 100%;

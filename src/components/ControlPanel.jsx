@@ -7,6 +7,7 @@ import {
   THREADS,
   TOE_SHAPES,
 } from '../data/presets'
+import { STITCH_PATTERNS } from '../three/stitchPatterns'
 
 function SwatchRow({ label, options, value, onPick }) {
   return (
@@ -107,17 +108,33 @@ export default function ControlPanel({
         <h2>Stitching</h2>
         <SwatchRow label="Thread" options={THREADS} value={design.thread} onPick={set('thread')} />
         <div className="field">
-          <div className="field-label">Shaft pattern</div>
+          <div className="field-label">Boot-top pattern</div>
+          <div className="pattern-grid">
+            <button
+              type="button"
+              className={`pattern-chip ${!design.stitchPattern ? 'selected' : ''}`}
+              onClick={() => set('stitchPattern')(null)}
+            >
+              <span className="pattern-flames" aria-hidden="true">
+                ⌇⌇⌇
+              </span>
+              Flames
+            </button>
+            {STITCH_PATTERNS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`pattern-chip ${design.stitchPattern === p.url ? 'selected' : ''}`}
+                onClick={() => set('stitchPattern')(p.url)}
+              >
+                <img src={p.url} alt="" />
+                {p.name}
+              </button>
+            ))}
+          </div>
           <div className="actions">
             <button type="button" onClick={() => patternRef.current?.click()}>
               Import pattern
-            </button>
-            <button
-              type="button"
-              disabled={!design.stitchPattern}
-              onClick={() => set('stitchPattern')(null)}
-            >
-              Classic flames
             </button>
             <input
               ref={patternRef}
